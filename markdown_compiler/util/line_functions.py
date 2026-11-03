@@ -10,29 +10,40 @@ def _pair(line, delim, open_tag, close_tag):
     '''
     Replace each alternating pair of delim with open_tag/close_tag.
 
+    Unmatched delimiters are left unchanged.
+
     >>> _pair('a*b*c', '*', '<i>', '</i>')
     'a<i>b</i>c'
     >>> _pair('a*b', '*', '<i>', '</i>')
-    'a<i>b'
+    'a*b'
     '''
-    out, i, opened = '', 0, False
+    out, i, opened, last_open = '', 0, False, 0
     while i < len(line):
         if line[i:i + len(delim)] == delim:
-            out += close_tag if opened else open_tag
+            if opened:
+                out += close_tag
+            else:
+                last_open = len(out)
+                out += open_tag
             opened = not opened
             i += len(delim)
         else:
             out += line[i]
             i += 1
+    if opened:
+        out = out[:last_open] + delim + out[last_open + len(open_tag):]
     return out
 
 
 def compile_headers(line):
-    return line
+    level = len(line) - len(line.lstrip('#'))
+    if level == 0:
+        return line
+    return f'<h{level}>{line[level:]}</h{level}>'
 
 
 def compile_italic_star(line):
-    return line
+    return _pair(line, '*', '<i>', '</i>')
 
 
 def compile_italic_underscore(line):
@@ -44,7 +55,7 @@ def compile_strikethrough(line):
 
 
 def compile_bold_stars(line):
-    return line
+    return _pair(line, '**', '<b>', '</b>')
 
 
 def compile_bold_underscore(line):
@@ -85,4 +96,13 @@ def compile_links(line):
 
 
 def compile_images(line):
-    return line
+    out = line
+    while '![' in out and '](' in out:
+        i = out.find('![')
+        j = out.find('](', i)
+        k = out.find(')', j)
+        if j < 0 or k < 0:
+            break
+        out = out[:i] + f'<img src="{out[j + 2:k]}" alt="{out[i + 2:j]}" />' \
+            + out[k + 1:]
+    return out
